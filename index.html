@@ -30,7 +30,7 @@
 <div id="app" class="p-6"></div>
 
 <script>
-// Initial setup
+// Initial setup, no rules added yet
 const GRID_SIZE = 9;
 let selectedTile = null;
 let planningMode = false;
@@ -57,7 +57,7 @@ const ROOM_NAMES = {
   SealedVault: "Sealed Vault"
 };
 
-// Room icons for visual representation
+// Room Icons for visual representation
 const ROOM_ICONS = {
   AlchemyLab: "icons/IconAlchemyLab.webp",
   Armoury: "icons/IconArmoury.webp",
@@ -77,58 +77,76 @@ const ROOM_ICONS = {
   Spymaster: "icons/IconViperSpymaster.webp"
 };
 
-// Room connection rules (simplified)
-const ROOM_CONNECTION_RULES = {
-  Spymaster: { canConnectTo: ["Garrison"] },
-  Garrison: { canConnectTo: ["Spymaster", "Commander", "SynthfleshLab", "Armoury"] },
-  Commander: { canConnectTo: ["Garrison", "TranscendentBarracks"] },
-  TranscendentBarracks: { canConnectTo: ["Commander", "SynthfleshLab"] },
-  SynthfleshLab: { canConnectTo: ["Garrison", "FleshSurgeon", "TranscendentBarracks"] },
-  FleshSurgeon: { canConnectTo: ["SynthfleshLab"] },
-  LegionBarrack: { canConnectTo: ["Spymaster", "Garrison", "Armoury"] },
-  Armoury: { canConnectTo: ["Garrison", "LegionBarrack", "Smithy", "AlchemyLab"] },
-  Smithy: { canConnectTo: ["Armoury", "GolemWorks"] },
-  GolemWorks: { canConnectTo: ["Smithy"] },
-  AlchemyLab: { canConnectTo: ["Armoury", "Thaumaturge"] },
-  Thaumaturge: { canConnectTo: ["AlchemyLab", "CorruptionChamber", "SacrificialChamber", "Generator"] },
-  CorruptionChamber: { canConnectTo: ["Thaumaturge", "SacrificialChamber"] },
-  SacrificialChamber: { canConnectTo: ["Generator", "Thaumaturge", "CorruptionChamber"] },
-  Generator: { canConnectTo: ["Thaumaturge", "SacrificialChamber"] }
+// Room bonuses and effects
+const ROOM_TILES = {
+  Spymaster: { bonuses: ["30% Effect of Temple Mods", "MEDALLION:HIGH:LOCK"] },
+  Garrison: { bonuses: ["20% Monster Packs", "30% Normal Monster Effectiveness"] },
+  LegionBarrack: { bonuses: ["60% More Rare Monsters", "MEDALLION:HIGH:ADVANCED"] },
+  Commander: { bonuses: ["60% Rare Monster Effectiveness", "MEDALLION:LOW:ADVANCED"] },
+  FleshSurgeon: { bonuses: ["40% Unique Monster Effectiveness", "ITEM:Limb Modification"] },
+  Smithy: { bonuses: ["60% Chest Item Rarity", "ITEM:Vaal Infuser"] },
+  Armoury: { bonuses: ["60% Humanoid Monster Effectiveness"] },
+  SynthfleshLab: { bonuses: ["40% Experience"] },
+  TranscendentBarracks: { bonuses: ["60% More Magic Monsters"] },
+  GolemWorks: { bonuses: ["30% Effect of Temple Mods", "ADD:High Priest", "MEDALLION:HIGH:ROOM"] },
+  AlchemyLab: { bonuses: ["60% Item Rarity", "50% Gold", "ITEM:Core Destabiliser", "MEDALLION:LOW:ROOM"] },
+  Thaumaturge: { bonuses: ["30% Effect of Temple Mods", "ADD:Quadrilla Sergeant", "ITEM:Crystallised Corruption", "MEDALLION:HIGH:ADVANCED"] },
+  CorruptionChamber: { bonuses: ["60% Chance Rare Monster +1 Mod", "ADD:Royal Sentinel", "ITEM:Architect's Orb"] },
+  Generator: { bonuses: ["60% Construct Monster Effectiveness", "ADD:Corrupted Abomination"] },
+  SacrificialChamber: { bonuses: ["60% Increased Rare Chest", "ADD:Unchained Beast", "ITEM:Vaal Cultivation Orb", "MEDALLION:HIGH:ADVANCED"] },
+  SealedVault: { bonuses: ["25% Item Rarity"] }
 };
 
-// Function to check if placement is valid
-function isValidPlacement(tileIndex, tileName) {
-  const currentTile = grid[tileIndex];
-
-  // Ensure the placement follows connection rules
-  if (currentTile) {
-    const neighbors = getNeighbors(tileIndex);
-    const invalidConnection = neighbors.some(neighbor => {
-      const neighborTile = grid[neighbor]?.tile;
-      return neighborTile && !ROOM_CONNECTION_RULES[tileName]?.canConnectTo.includes(neighborTile);
-    });
-
-    return !invalidConnection;
-  }
-
-  return true;
+// Helper to format bonus text
+function formatBonuses(tileKey, count = 1) {
+  return ROOM_TILES[tileKey]?.bonuses.map(b => {
+    if (b.startsWith("MEDALLION:")) {
+      const [, chance, type] = b.split(":");
+      return `+${count} ${chance === "HIGH" ? "High" : "Low"} Chance ${type} Medallion`;
+    }
+    if (b.startsWith("ITEM:")) return `+${count} ${b.slice(5)}`;
+    if (b.startsWith("ADD:")) return `Adds ${count} ${b.slice(4)} to map`;
+    const m = b.match(/(\d+)%\s*(.*)/);
+    return `${parseInt(m[1]) * count}% ${m[2]}`;
+  }) ?? [];
 }
 
-// Get neighboring tile indices (up, down, left, right)
-function getNeighbors(index) {
-  const neighbors = [];
-  const row = Math.floor(index / GRID_SIZE);
-  const col = index % GRID_SIZE;
-
-  if (row > 0) neighbors.push(index - GRID_SIZE); // Up
-  if (row < GRID_SIZE - 1) neighbors.push(index + GRID_SIZE); // Down
-  if (col > 0) neighbors.push(index - 1); // Left
-  if (col < GRID_SIZE - 1) neighbors.push(index + 1); // Right
-
-  return neighbors;
+// Category of bonus
+function categoryOf(text) {
+  if (text.includes("Medallion")) return "Medallions";
+  if (text.startsWith("+")) return "Items";
+  if (text.startsWith("Adds")) return "Map Adds";
+  if (text.includes("Monster")) return "Monster";
+  return "Other";
 }
 
-// Function to render the grid
+// Function to apply search filter to bonuses
+function applyFilter() {
+  document.querySelectorAll(".text-sm").forEach(el => {
+    const match = !bonusFilter || el.textContent.toLowerCase().includes(bonusFilter);
+    el.classList.toggle("opacity-30", !match);
+  });
+}
+
+// Save and Load layout functions
+function saveLayout() {
+  navigator.clipboard.writeText(JSON.stringify(grid));
+  alert("Layout copied to clipboard");
+}
+
+function loadLayout() {
+  const input = prompt("Paste layout data:");
+  if (!input) return;
+  try {
+    const parsed = JSON.parse(input);
+    if (Array.isArray(parsed)) {
+      grid = parsed;
+      render();
+    }
+  } catch {}
+}
+
+// Render the layout with tile selectors and active bonuses
 function render() {
   const app = document.getElementById("app");
   app.innerHTML = "";
@@ -158,7 +176,6 @@ function render() {
         btn.appendChild(img);
       }
       if (cell.faded) btn.classList.add("faded");
-      if (!isValidPlacement(i, cell.tile)) btn.classList.add("invalid");
     }
 
     btn.onclick = () => {
@@ -180,7 +197,6 @@ function render() {
     gridEl.appendChild(btn);
   });
 
-  /* Controls row */
   const controls = document.createElement("div");
   controls.className = "flex gap-4 items-center flex-wrap";
 
@@ -241,7 +257,7 @@ function render() {
   roomCol.className = "min-w-72 w-72 space-y-2";
   roomCol.innerHTML = "<h2 class='font-semibold'>Room Tiles</h2>";
 
-  Object.keys(ROOM_NAMES).forEach(r => {
+  Object.keys(ROOM_TILES).forEach(r => {
     const btn = document.createElement("button");
     btn.className = `w-full flex items-center gap-2 px-3 py-2 rounded ${
       selectedTile === r ? "bg-emerald-600" : "bg-zinc-700"
@@ -277,7 +293,7 @@ function render() {
 
   const counts = {};
   grid.forEach(c => {
-    if (c && !c.faded && ROOM_NAMES[c.tile]) {
+    if (c && !c.faded && ROOM_TILES[c.tile]) {
       counts[c.tile] = (counts[c.tile] || 0) + 1;
     }
   });
