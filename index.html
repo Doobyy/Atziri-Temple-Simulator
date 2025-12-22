@@ -30,14 +30,14 @@
 <div id="app" class="p-6"></div>
 
 <script>
-/* ===================== STATE ===================== */
+// Initial setup
 const GRID_SIZE = 9;
 let selectedTile = null;
 let planningMode = false;
 let bonusFilter = "";
 let grid = Array(GRID_SIZE * GRID_SIZE).fill(null);
 
-/* ===================== DISPLAY NAMES ===================== */
+// Room names for display
 const ROOM_NAMES = {
   Spymaster: "Spymaster",
   Garrison: "Garrison",
@@ -57,7 +57,7 @@ const ROOM_NAMES = {
   SealedVault: "Sealed Vault"
 };
 
-/* ===================== ICONS ===================== */
+// Room icons for visual representation
 const ROOM_ICONS = {
   AlchemyLab: "icons/IconAlchemyLab.webp",
   Armoury: "icons/IconArmoury.webp",
@@ -77,74 +77,58 @@ const ROOM_ICONS = {
   Spymaster: "icons/IconViperSpymaster.webp"
 };
 
-/* ===================== ROOMS ===================== */
-const ROOM_TILES = {
-  Spymaster: { bonuses: ["30% Effect of Temple Mods", "MEDALLION:HIGH:LOCK"] },
-  Garrison: { bonuses: ["20% Monster Packs", "30% Normal Monster Effectiveness"] },
-  LegionBarrack: { bonuses: ["60% More Rare Monsters", "MEDALLION:HIGH:ADVANCED"] },
-  Commander: { bonuses: ["60% Rare Monster Effectiveness", "MEDALLION:LOW:ADVANCED"] },
-  FleshSurgeon: { bonuses: ["40% Unique Monster Effectiveness", "ITEM:Limb Modification"] },
-  Smithy: { bonuses: ["60% Chest Item Rarity", "ITEM:Vaal Infuser"] },
-  Armoury: { bonuses: ["60% Humanoid Monster Effectiveness"] },
-  SynthfleshLab: { bonuses: ["40% Experience"] },
-  TranscendentBarracks: { bonuses: ["60% More Magic Monsters"] },
-  GolemWorks: { bonuses: ["30% Effect of Temple Mods", "ADD:High Priest", "MEDALLION:HIGH:ROOM"] },
-  AlchemyLab: { bonuses: ["60% Item Rarity", "50% Gold", "ITEM:Core Destabiliser", "MEDALLION:LOW:ROOM"] },
-  Thaumaturge: { bonuses: ["30% Effect of Temple Mods", "ADD:Quadrilla Sergeant", "ITEM:Crystallised Corruption", "MEDALLION:HIGH:ADVANCED"] },
-  CorruptionChamber: { bonuses: ["60% Chance Rare Monster +1 Mod", "ADD:Royal Sentinel", "ITEM:Architect's Orb"] },
-  Generator: { bonuses: ["60% Construct Monster Effectiveness", "ADD:Corrupted Abomination"] },
-  SacrificialChamber: { bonuses: ["60% Increased Rare Chest", "ADD:Unchained Beast", "ITEM:Vaal Cultivation Orb", "MEDALLION:HIGH:ADVANCED"] },
-  SealedVault: { bonuses: ["25% Item Rarity"] }
+// Room connection rules (simplified)
+const ROOM_CONNECTION_RULES = {
+  Spymaster: { canConnectTo: ["Garrison"] },
+  Garrison: { canConnectTo: ["Spymaster", "Commander", "SynthfleshLab", "Armoury"] },
+  Commander: { canConnectTo: ["Garrison", "TranscendentBarracks"] },
+  TranscendentBarracks: { canConnectTo: ["Commander", "SynthfleshLab"] },
+  SynthfleshLab: { canConnectTo: ["Garrison", "FleshSurgeon", "TranscendentBarracks"] },
+  FleshSurgeon: { canConnectTo: ["SynthfleshLab"] },
+  LegionBarrack: { canConnectTo: ["Spymaster", "Garrison", "Armoury"] },
+  Armoury: { canConnectTo: ["Garrison", "LegionBarrack", "Smithy", "AlchemyLab"] },
+  Smithy: { canConnectTo: ["Armoury", "GolemWorks"] },
+  GolemWorks: { canConnectTo: ["Smithy"] },
+  AlchemyLab: { canConnectTo: ["Armoury", "Thaumaturge"] },
+  Thaumaturge: { canConnectTo: ["AlchemyLab", "CorruptionChamber", "SacrificialChamber", "Generator"] },
+  CorruptionChamber: { canConnectTo: ["Thaumaturge", "SacrificialChamber"] },
+  SacrificialChamber: { canConnectTo: ["Generator", "Thaumaturge", "CorruptionChamber"] },
+  Generator: { canConnectTo: ["Thaumaturge", "SacrificialChamber"] }
 };
 
-/* ===================== HELPERS ===================== */
-function formatBonuses(tileKey, count = 1) {
-  return ROOM_TILES[tileKey]?.bonuses.map(b => {
-    if (b.startsWith("MEDALLION:")) {
-      const [, chance, type] = b.split(":");
-      return `+${count} ${chance === "HIGH" ? "High" : "Low"} Chance ${type} Medallion`;
-    }
-    if (b.startsWith("ITEM:")) return `+${count} ${b.slice(5)}`;
-    if (b.startsWith("ADD:")) return `Adds ${count} ${b.slice(4)} to map`;
-    const m = b.match(/(\d+)%\s*(.*)/);
-    return `${parseInt(m[1]) * count}% ${m[2]}`;
-  }) ?? [];
+// Function to check if placement is valid
+function isValidPlacement(tileIndex, tileName) {
+  const currentTile = grid[tileIndex];
+
+  // Ensure the placement follows connection rules
+  if (currentTile) {
+    const neighbors = getNeighbors(tileIndex);
+    const invalidConnection = neighbors.some(neighbor => {
+      const neighborTile = grid[neighbor]?.tile;
+      return neighborTile && !ROOM_CONNECTION_RULES[tileName]?.canConnectTo.includes(neighborTile);
+    });
+
+    return !invalidConnection;
+  }
+
+  return true;
 }
 
-function categoryOf(text) {
-  if (text.includes("Medallion")) return "Medallions";
-  if (text.startsWith("+")) return "Items";
-  if (text.startsWith("Adds")) return "Map Adds";
-  if (text.includes("Monster")) return "Monster";
-  return "Other";
+// Get neighboring tile indices (up, down, left, right)
+function getNeighbors(index) {
+  const neighbors = [];
+  const row = Math.floor(index / GRID_SIZE);
+  const col = index % GRID_SIZE;
+
+  if (row > 0) neighbors.push(index - GRID_SIZE); // Up
+  if (row < GRID_SIZE - 1) neighbors.push(index + GRID_SIZE); // Down
+  if (col > 0) neighbors.push(index - 1); // Left
+  if (col < GRID_SIZE - 1) neighbors.push(index + 1); // Right
+
+  return neighbors;
 }
 
-function highlight(text, filter) {
-  if (!filter) return text;
-  return text.replace(
-    new RegExp(`(${filter})`, "ig"),
-    `<mark class="bg-emerald-600/40 rounded px-0.5">$1</mark>`
-  );
-}
-
-/* ===================== SAVE / LOAD ===================== */
-function saveLayout() {
-  navigator.clipboard.writeText(JSON.stringify(grid));
-  alert("Layout copied to clipboard");
-}
-function loadLayout() {
-  const input = prompt("Paste layout data:");
-  if (!input) return;
-  try {
-    const parsed = JSON.parse(input);
-    if (Array.isArray(parsed)) {
-      grid = parsed;
-      render();
-    }
-  } catch {}
-}
-
-/* ===================== RENDER ===================== */
+// Function to render the grid
 function render() {
   const app = document.getElementById("app");
   app.innerHTML = "";
@@ -152,7 +136,7 @@ function render() {
   const container = document.createElement("div");
   container.className = "flex gap-6 items-start";
 
-  /* ---------- GRID ---------- */
+  /* ---------- GRID COLUMN ---------- */
   const gridCol = document.createElement("div");
   gridCol.className = "space-y-3 shrink-0";
 
@@ -174,29 +158,7 @@ function render() {
         btn.appendChild(img);
       }
       if (cell.faded) btn.classList.add("faded");
-
-      btn.onmouseenter = e => {
-        const tip = document.createElement("div");
-        tip.className = "tooltip";
-        if (cell.tile === "TempleFloor") {
-          tip.textContent = "Floor tile (no bonuses)";
-        } else {
-          tip.innerHTML =
-            `<strong>${ROOM_NAMES[cell.tile]}</strong>` +
-            (cell.faded ? " <em>(Planned)</em>" : "") +
-            "<br>" +
-            formatBonuses(cell.tile).map(b => `• ${b}`).join("<br>");
-        }
-        document.body.appendChild(tip);
-        btn._tip = tip;
-      };
-      btn.onmousemove = e => {
-        if (btn._tip) {
-          btn._tip.style.left = e.pageX + 12 + "px";
-          btn._tip.style.top = e.pageY + 12 + "px";
-        }
-      };
-      btn.onmouseleave = () => btn._tip?.remove();
+      if (!isValidPlacement(i, cell.tile)) btn.classList.add("invalid");
     }
 
     btn.onclick = () => {
@@ -218,14 +180,34 @@ function render() {
     gridEl.appendChild(btn);
   });
 
-  /* Controls */
+  /* Controls row */
   const controls = document.createElement("div");
   controls.className = "flex gap-4 items-center flex-wrap";
 
-  controls.innerHTML = `
-    <button class="px-3 py-1 bg-zinc-700 rounded" onclick="saveLayout()">Save</button>
-    <button class="px-3 py-1 bg-zinc-700 rounded" onclick="loadLayout()">Load</button>
-  `;
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "px-3 py-1 bg-zinc-700 rounded";
+  saveBtn.textContent = "Save";
+  saveBtn.onclick = saveLayout;
+
+  const loadBtn = document.createElement("button");
+  loadBtn.className = "px-3 py-1 bg-zinc-700 rounded";
+  loadBtn.textContent = "Load";
+  loadBtn.onclick = loadLayout;
+
+  const floorWrap = document.createElement("div");
+  floorWrap.className = "flex items-center gap-2 text-sm";
+  floorWrap.innerHTML = "<span>Floor tile:</span>";
+
+  const floorBtn = document.createElement("button");
+  floorBtn.className = `w-8 h-8 rounded floor-tile ${
+    selectedTile === "TempleFloor" ? "ring-2 ring-emerald-500" : ""
+  }`;
+  floorBtn.onclick = () => {
+    selectedTile = selectedTile === "TempleFloor" ? null : "TempleFloor";
+    render();
+  };
+
+  floorWrap.appendChild(floorBtn);
 
   const planningLabel = document.createElement("label");
   planningLabel.className = "flex items-center gap-2 text-sm";
@@ -235,48 +217,44 @@ function render() {
   planningCheckbox.onchange = e => planningMode = e.target.checked;
   planningLabel.append(planningCheckbox, document.createTextNode("Planning mode"));
 
-  controls.appendChild(planningLabel);
+  controls.append(saveBtn, loadBtn, floorWrap, planningLabel);
   gridCol.append(gridEl, controls);
 
-  /* ---------- ROOM LIST ---------- */
+  /* Help section with instructions */
+  const help = document.createElement("div");
+  help.className = "text-sm text-zinc-300 max-w-md mt-4";
+  help.innerHTML = `
+    <strong>How to use:</strong>
+    <ul class="list-disc ml-5 mt-1 space-y-1">
+      <li>Select a room or floor tile, then left-click to place it.</li>
+      <li>Click the same selector again to deselect.</li>
+      <li>Planning mode places faded (planned) tiles.</li>
+      <li>With no tile selected, click a tile to toggle planned ↔ real.</li>
+      <li>Right-click removes a tile.</li>
+      <li>Only solid tiles count toward Active Bonuses.</li>
+    </ul>
+  `;
+  gridCol.appendChild(help);
+
+  /* ---------- ROOM COLUMN ---------- */
   const roomCol = document.createElement("div");
   roomCol.className = "min-w-72 w-72 space-y-2";
   roomCol.innerHTML = "<h2 class='font-semibold'>Room Tiles</h2>";
 
-  Object.keys(ROOM_TILES).forEach(r => {
+  Object.keys(ROOM_NAMES).forEach(r => {
     const btn = document.createElement("button");
     btn.className = `w-full flex items-center gap-2 px-3 py-2 rounded ${
       selectedTile === r ? "bg-emerald-600" : "bg-zinc-700"
     }`;
-
     const img = document.createElement("img");
     img.src = ROOM_ICONS[r];
     img.className = "w-5 h-5";
     btn.appendChild(img);
     btn.append(ROOM_NAMES[r]);
-
-    btn.onmouseenter = e => {
-      const tip = document.createElement("div");
-      tip.className = "tooltip";
-      tip.innerHTML =
-        `<strong>${ROOM_NAMES[r]}</strong><br>` +
-        formatBonuses(r).map(b => `• ${b}`).join("<br>");
-      document.body.appendChild(tip);
-      btn._tip = tip;
-    };
-    btn.onmousemove = e => {
-      if (btn._tip) {
-        btn._tip.style.left = e.pageX + 12 + "px";
-        btn._tip.style.top = e.pageY + 12 + "px";
-      }
-    };
-    btn.onmouseleave = () => btn._tip?.remove();
-
     btn.onclick = () => {
       selectedTile = selectedTile === r ? null : r;
       render();
     };
-
     roomCol.appendChild(btn);
   });
 
@@ -299,7 +277,7 @@ function render() {
 
   const counts = {};
   grid.forEach(c => {
-    if (c && !c.faded && ROOM_TILES[c.tile]) {
+    if (c && !c.faded && ROOM_NAMES[c.tile]) {
       counts[c.tile] = (counts[c.tile] || 0) + 1;
     }
   });
@@ -308,9 +286,8 @@ function render() {
   Object.entries(counts).forEach(([room, count]) => {
     formatBonuses(room, count).forEach(text => {
       const cat = categoryOf(text);
-      grouped[cat] ??= {};
-      grouped[cat][text] ??= {};
-      grouped[cat][text][room] = count;
+      grouped[cat] ??= [];
+      grouped[cat].push(text);
     });
   });
 
@@ -320,32 +297,10 @@ function render() {
     h.textContent = cat;
     list.appendChild(h);
 
-    Object.entries(bonuses).forEach(([text, sources]) => {
+    bonuses.forEach(text => {
       const li = document.createElement("div");
-      li.className = "text-sm transition-opacity";
-      li.dataset.raw = text.toLowerCase();
-      li.dataset.display = text;
-      li.innerHTML = text;
-
-      li.onmouseenter = () => {
-        const tip = document.createElement("div");
-        tip.className = "tooltip";
-        tip.innerHTML =
-          "From:<br>" +
-          Object.entries(sources)
-            .map(([r,c]) => `• ${ROOM_NAMES[r]} ×${c}`)
-            .join("<br>");
-        document.body.appendChild(tip);
-        li._tip = tip;
-      };
-      li.onmousemove = e => {
-        if (li._tip) {
-          li._tip.style.left = e.pageX + 12 + "px";
-          li._tip.style.top = e.pageY + 12 + "px";
-        }
-      };
-      li.onmouseleave = () => li._tip?.remove();
-
+      li.className = "text-sm";
+      li.textContent = text;
       list.appendChild(li);
     });
   });
@@ -354,15 +309,6 @@ function render() {
 
   container.append(gridCol, roomCol, bonusCol);
   app.appendChild(container);
-  applyFilter();
-}
-
-function applyFilter() {
-  document.querySelectorAll("[data-raw]").forEach(el => {
-    const match = !bonusFilter || el.dataset.raw.includes(bonusFilter);
-    el.classList.toggle("opacity-30", !match);
-    el.innerHTML = highlight(el.dataset.display, bonusFilter);
-  });
 }
 
 render();
