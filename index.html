@@ -30,14 +30,14 @@
 <div id="app" class="p-6"></div>
 
 <script>
-// Initial setup, no rules added yet
 const GRID_SIZE = 9;
 let selectedTile = null;
 let planningMode = false;
 let bonusFilter = "";
 let grid = Array(GRID_SIZE * GRID_SIZE).fill(null);
 
-// Room names for display
+/* ---------------- ROOM DATA ---------------- */
+
 const ROOM_NAMES = {
   Spymaster: "Spymaster",
   Garrison: "Garrison",
@@ -57,7 +57,6 @@ const ROOM_NAMES = {
   SealedVault: "Sealed Vault"
 };
 
-// Room Icons for visual representation
 const ROOM_ICONS = {
   AlchemyLab: "icons/IconAlchemyLab.webp",
   Armoury: "icons/IconArmoury.webp",
@@ -77,9 +76,8 @@ const ROOM_ICONS = {
   Spymaster: "icons/IconViperSpymaster.webp"
 };
 
-// Room bonuses and effects
 const ROOM_TILES = {
-  Spymaster: { bonuses: ["30% Effect of Temple Mods", "MEDALLION:HIGH:LOCK"] },
+  Spymaster: { bonuses: ["MEDALLION:HIGH:LOCK"] },
   Garrison: { bonuses: ["20% Monster Packs", "30% Normal Monster Effectiveness"] },
   LegionBarrack: { bonuses: ["60% More Rare Monsters", "MEDALLION:HIGH:ADVANCED"] },
   Commander: { bonuses: ["60% Rare Monster Effectiveness", "MEDALLION:LOW:ADVANCED"] },
@@ -88,16 +86,30 @@ const ROOM_TILES = {
   Armoury: { bonuses: ["60% Humanoid Monster Effectiveness"] },
   SynthfleshLab: { bonuses: ["40% Experience"] },
   TranscendentBarracks: { bonuses: ["60% More Magic Monsters"] },
-  GolemWorks: { bonuses: ["30% Effect of Temple Mods", "ADD:High Priest", "MEDALLION:HIGH:ROOM"] },
+  GolemWorks: { bonuses: ["ADD:High Priest", "MEDALLION:HIGH:ROOM"] },
   AlchemyLab: { bonuses: ["60% Item Rarity", "50% Gold", "ITEM:Core Destabiliser", "MEDALLION:LOW:ROOM"] },
-  Thaumaturge: { bonuses: ["30% Effect of Temple Mods", "ADD:Quadrilla Sergeant", "ITEM:Crystallised Corruption", "MEDALLION:HIGH:ADVANCED"] },
+  Thaumaturge: { bonuses: ["ADD:Quadrilla Sergeant", "ITEM:Crystallised Corruption", "MEDALLION:HIGH:ADVANCED"] },
   CorruptionChamber: { bonuses: ["60% Chance Rare Monster +1 Mod", "ADD:Royal Sentinel", "ITEM:Architect's Orb"] },
   Generator: { bonuses: ["60% Construct Monster Effectiveness", "ADD:Corrupted Abomination"] },
   SacrificialChamber: { bonuses: ["60% Increased Rare Chest", "ADD:Unchained Beast", "ITEM:Vaal Cultivation Orb", "MEDALLION:HIGH:ADVANCED"] },
   SealedVault: { bonuses: ["25% Item Rarity"] }
 };
 
-// Helper to format bonus text
+/* ---------------- BOOST RULES ---------------- */
+
+const BOOST_RULES = {
+  Spymaster: {
+    amount: 0.30,
+    targets: ["Garrison", "Commander", "Armoury", "Smithy", "LegionBarrack"]
+  },
+  Thaumaturge: {
+    amount: 0.30,
+    targets: ["CorruptionChamber", "SealedVault", "SacrificialChamber"]
+  }
+};
+
+/* ---------------- HELPERS ---------------- */
+
 function formatBonuses(tileKey, count = 1) {
   return ROOM_TILES[tileKey]?.bonuses.map(b => {
     if (b.startsWith("MEDALLION:")) {
@@ -107,11 +119,10 @@ function formatBonuses(tileKey, count = 1) {
     if (b.startsWith("ITEM:")) return `+${count} ${b.slice(5)}`;
     if (b.startsWith("ADD:")) return `Adds ${count} ${b.slice(4)} to map`;
     const m = b.match(/(\d+)%\s*(.*)/);
-    return `${parseInt(m[1]) * count}% ${m[2]}`;
+    return `${Math.round(parseInt(m[1]) * count)}% ${m[2]}`;
   }) ?? [];
 }
 
-// Category of bonus
 function categoryOf(text) {
   if (text.includes("Medallion")) return "Medallions";
   if (text.startsWith("+")) return "Items";
@@ -120,15 +131,8 @@ function categoryOf(text) {
   return "Other";
 }
 
-// Function to apply search filter to bonuses
-function applyFilter() {
-  document.querySelectorAll(".text-sm").forEach(el => {
-    const match = !bonusFilter || el.textContent.toLowerCase().includes(bonusFilter);
-    el.classList.toggle("opacity-30", !match);
-  });
-}
+/* ---------------- SAVE / LOAD ---------------- */
 
-// Save and Load layout functions
 function saveLayout() {
   navigator.clipboard.writeText(JSON.stringify(grid));
   alert("Layout copied to clipboard");
@@ -146,7 +150,8 @@ function loadLayout() {
   } catch {}
 }
 
-// Render the layout with tile selectors and active bonuses
+/* ---------------- RENDER ---------------- */
+
 function render() {
   const app = document.getElementById("app");
   app.innerHTML = "";
@@ -154,7 +159,8 @@ function render() {
   const container = document.createElement("div");
   container.className = "flex gap-6 items-start";
 
-  /* ---------- GRID COLUMN ---------- */
+  /* ---------- GRID ---------- */
+
   const gridCol = document.createElement("div");
   gridCol.className = "space-y-3 shrink-0";
 
@@ -197,6 +203,8 @@ function render() {
     gridEl.appendChild(btn);
   });
 
+  /* ---------- CONTROLS (FLOOR TILE RESTORED) ---------- */
+
   const controls = document.createElement("div");
   controls.className = "flex gap-4 items-center flex-wrap";
 
@@ -236,23 +244,8 @@ function render() {
   controls.append(saveBtn, loadBtn, floorWrap, planningLabel);
   gridCol.append(gridEl, controls);
 
-  /* Help section with instructions */
-  const help = document.createElement("div");
-  help.className = "text-sm text-zinc-300 max-w-md mt-4";
-  help.innerHTML = `
-    <strong>How to use:</strong>
-    <ul class="list-disc ml-5 mt-1 space-y-1">
-      <li>Select a room or floor tile, then left-click to place it.</li>
-      <li>Click the same selector again to deselect.</li>
-      <li>Planning mode places faded (planned) tiles.</li>
-      <li>With no tile selected, click a tile to toggle planned ↔ real.</li>
-      <li>Right-click removes a tile.</li>
-      <li>Only solid tiles count toward Active Bonuses.</li>
-    </ul>
-  `;
-  gridCol.appendChild(help);
+  /* ---------- ROOM LIST ---------- */
 
-  /* ---------- ROOM COLUMN ---------- */
   const roomCol = document.createElement("div");
   roomCol.className = "min-w-72 w-72 space-y-2";
   roomCol.innerHTML = "<h2 class='font-semibold'>Room Tiles</h2>";
@@ -275,32 +268,37 @@ function render() {
   });
 
   /* ---------- ACTIVE BONUSES ---------- */
+
   const bonusCol = document.createElement("div");
   bonusCol.className = "w-[420px] space-y-2";
-  bonusCol.innerHTML = `
-    <h2 class="font-semibold">Active Bonuses</h2>
-    <input id="search" class="w-full bg-zinc-800 p-2 rounded" placeholder="Search bonuses..." />
-  `;
-
-  const search = bonusCol.querySelector("#search");
-  search.value = bonusFilter;
-  search.oninput = e => {
-    bonusFilter = e.target.value.toLowerCase();
-    applyFilter();
-  };
+  bonusCol.innerHTML = `<h2 class="font-semibold">Active Bonuses</h2>`;
 
   const list = document.createElement("div");
 
   const counts = {};
+  const boosters = {};
+  const boostReport = [];
+
   grid.forEach(c => {
-    if (c && !c.faded && ROOM_TILES[c.tile]) {
-      counts[c.tile] = (counts[c.tile] || 0) + 1;
-    }
+    if (!c || c.faded) return;
+    if (ROOM_TILES[c.tile]) counts[c.tile] = (counts[c.tile] || 0) + 1;
+    if (BOOST_RULES[c.tile]) boosters[c.tile] = (boosters[c.tile] || 0) + 1;
   });
 
   const grouped = {};
-  Object.entries(counts).forEach(([room, count]) => {
-    formatBonuses(room, count).forEach(text => {
+
+  Object.entries(counts).forEach(([room, base]) => {
+    let mult = 1;
+    Object.entries(boosters).forEach(([b, n]) => {
+      const rule = BOOST_RULES[b];
+      if (rule.targets.includes(room)) mult += rule.amount * n;
+    });
+
+    if (mult > 1) {
+      boostReport.push(`${ROOM_NAMES[room]}: +${Math.round((mult - 1) * 100)}% (included)`);
+    }
+
+    formatBonuses(room, base * mult).forEach(text => {
       const cat = categoryOf(text);
       grouped[cat] ??= [];
       grouped[cat].push(text);
@@ -312,14 +310,26 @@ function render() {
     h.className = "mt-3 font-semibold text-emerald-400";
     h.textContent = cat;
     list.appendChild(h);
-
     bonuses.forEach(text => {
-      const li = document.createElement("div");
-      li.className = "text-sm";
-      li.textContent = text;
-      list.appendChild(li);
+      const d = document.createElement("div");
+      d.className = "text-sm";
+      d.textContent = text;
+      list.appendChild(d);
     });
   });
+
+  if (boostReport.length) {
+    const h = document.createElement("h3");
+    h.className = "mt-3 font-semibold text-sky-400";
+    h.textContent = "Boosted Effects (Already Included)";
+    list.appendChild(h);
+    boostReport.forEach(t => {
+      const d = document.createElement("div");
+      d.className = "text-sm opacity-80";
+      d.textContent = t;
+      list.appendChild(d);
+    });
+  }
 
   bonusCol.appendChild(list);
 
@@ -331,4 +341,3 @@ render();
 </script>
 </body>
 </html>
- 
