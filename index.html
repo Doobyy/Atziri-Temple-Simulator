@@ -1,79 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Temple Tile Simulator</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .tooltip {
-      position: absolute;
-      background: #18181b;
-      border: 1px solid #3f3f46;
-      padding: 6px 8px;
-      border-radius: 6px;
-      font-size: 12px;
-      z-index: 50;
-      pointer-events: none;
-      white-space: nowrap;
-    }
-    .floor-tile {
-      background-color: #372f21;
-      box-shadow: inset 0 0 0 2px #98854d;
-    }
-    .faded {
-      opacity: 0.6;
-      filter: saturate(0.7);
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>Temple Tile Simulator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+  .cell {
+    position: relative;
+    width: 3rem;
+    height: 3rem;
+    background: #27272a;
+    border-radius: 0.5rem;
+  }
+
+  .floor {
+    position: absolute;
+    inset: 0;
+    border: 3px solid #98854d;
+    border-radius: 0.5rem;
+    background: #372f21;
+    z-index: 1;
+  }
+
+  .open-U { border-top-color: transparent; }
+  .open-R { border-right-color: transparent; }
+  .open-D { border-bottom-color: transparent; }
+  .open-L { border-left-color: transparent; }
+
+  .room {
+    position: absolute;
+    inset: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .room img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .faded {
+    opacity: 0.6;
+    filter: saturate(0.7);
+  }
+</style>
 </head>
+
 <body class="bg-zinc-900 text-zinc-100">
 <div id="app" class="p-6"></div>
 
 <script>
 const GRID_SIZE = 9;
-let selectedTile = null;
+let selectedRoom = null;
+let selectedFloor = null;
 let planningMode = false;
-let bonusFilter = "";
-let grid = Array(GRID_SIZE * GRID_SIZE).fill(null);
 
-/* ---------------- ROOM DATA ---------------- */
+let grid = Array(GRID_SIZE * GRID_SIZE).fill(null).map(() => ({
+  room: null,
+  floor: null,
+  faded: false
+}));
+
+const FLOOR_TILES = [
+  "U","R","D","L",
+  "UR","RD","DL","LU","UD","LR",
+  "URD","RDL","DLU","LUR",
+  "URDL"
+];
 
 const ROOM_NAMES = {
-  Spymaster: "Spymaster",
-  Garrison: "Garrison",
-  LegionBarrack: "Legion Barracks",
-  Commander: "Commander",
-  FleshSurgeon: "Flesh Surgeon",
-  Smithy: "Smithy",
-  Armoury: "Armoury",
-  SynthfleshLab: "Synthflesh Lab",
-  TranscendentBarracks: "Transcendent Barracks",
-  GolemWorks: "Golem Works",
-  AlchemyLab: "Alchemy Lab",
-  Thaumaturge: "Thaumaturge",
-  CorruptionChamber: "Corruption Chamber",
-  Generator: "Generator",
-  SacrificialChamber: "Sacrificial Chamber",
-  SealedVault: "Sealed Vault"
+  Spymaster:"Spymaster",
+  Garrison:"Garrison",
+  LegionBarrack:"Legion Barracks",
+  Commander:"Commander",
+  FleshSurgeon:"Flesh Surgeon",
+  Smithy:"Smithy",
+  Armoury:"Armoury",
+  SynthfleshLab:"Synthflesh Lab",
+  TranscendentBarracks:"Transcendent Barracks",
+  GolemWorks:"Golem Works",
+  AlchemyLab:"Alchemy Lab",
+  Thaumaturge:"Thaumaturge",
+  CorruptionChamber:"Corruption Chamber",
+  Generator:"Generator",
+  SacrificialChamber:"Sacrificial Chamber",
+  SealedVault:"Sealed Vault"
 };
 
 const ROOM_ICONS = {
-  AlchemyLab: "icons/IconAlchemyLab.webp",
-  Armoury: "icons/IconArmoury.webp",
-  Commander: "icons/IconCommander.webp",
-  CorruptionChamber: "icons/IconCorruption.webp",
-  FleshSurgeon: "icons/IconFleshSurgeon.webp",
-  Garrison: "icons/IconGarrison.webp",
-  Generator: "icons/IconGenerator.webp",
-  GolemWorks: "icons/IconGolemWorks.webp",
-  SacrificialChamber: "icons/IconSacrificialChamber.webp",
-  Smithy: "icons/IconSmithy.webp",
-  SynthfleshLab: "icons/IconSynthflesh.webp",
-  Thaumaturge: "icons/IconThaumaturge.webp",
-  TranscendentBarracks: "icons/IconTranscendentBarracks.webp",
-  SealedVault: "icons/IconVault.webp",
-  LegionBarrack: "icons/IconViperLegionBarracks.webp",
-  Spymaster: "icons/IconViperSpymaster.webp"
+  AlchemyLab:"icons/IconAlchemyLab.webp",
+  Armoury:"icons/IconArmoury.webp",
+  Commander:"icons/IconCommander.webp",
+  CorruptionChamber:"icons/IconCorruption.webp",
+  FleshSurgeon:"icons/IconFleshSurgeon.webp",
+  Garrison:"icons/IconGarrison.webp",
+  Generator:"icons/IconGenerator.webp",
+  GolemWorks:"icons/IconGolemWorks.webp",
+  SacrificialChamber:"icons/IconSacrificialChamber.webp",
+  Smithy:"icons/IconSmithy.webp",
+  SynthfleshLab:"icons/IconSynthflesh.webp",
+  Thaumaturge:"icons/IconThaumaturge.webp",
+  TranscendentBarracks:"icons/IconTranscendentBarracks.webp",
+  SealedVault:"icons/IconVault.webp",
+  LegionBarrack:"icons/IconViperLegionBarracks.webp",
+  Spymaster:"icons/IconViperSpymaster.webp"
 };
 
 const ROOM_TILES = {
@@ -95,8 +130,7 @@ const ROOM_TILES = {
   SealedVault: { bonuses: ["25% Item Rarity"] }
 };
 
-/* ---------------- BOOST RULES ---------------- */
-
+/* ---------- BOOST RULES ---------- */
 const BOOST_RULES = {
   Spymaster: {
     amount: 0.30,
@@ -108,8 +142,6 @@ const BOOST_RULES = {
   }
 };
 
-/* ---------------- HELPERS ---------------- */
-
 function formatBonuses(tileKey, count = 1) {
   return ROOM_TILES[tileKey]?.bonuses.map(b => {
     if (b.startsWith("MEDALLION:")) {
@@ -119,7 +151,8 @@ function formatBonuses(tileKey, count = 1) {
     if (b.startsWith("ITEM:")) return `+${count} ${b.slice(5)}`;
     if (b.startsWith("ADD:")) return `Adds ${count} ${b.slice(4)} to map`;
     const m = b.match(/(\d+)%\s*(.*)/);
-    return `${Math.round(parseInt(m[1]) * count)}% ${m[2]}`;
+    if (m) return `${Math.round(parseInt(m[1]) * count)}% ${m[2]}`;
+    return b;
   }) ?? [];
 }
 
@@ -131,7 +164,9 @@ function categoryOf(text) {
   return "Other";
 }
 
-/* ---------------- SAVE / LOAD ---------------- */
+
+
+/* ---------- SAVE / LOAD ---------- */
 
 function saveLayout() {
   navigator.clipboard.writeText(JSON.stringify(grid));
@@ -150,188 +185,214 @@ function loadLayout() {
   } catch {}
 }
 
-/* ---------------- RENDER ---------------- */
+/* ---------- RENDER ---------- */
 
 function render() {
   const app = document.getElementById("app");
   app.innerHTML = "";
 
   const container = document.createElement("div");
-  container.className = "flex gap-6 items-start";
+  container.className = "flex gap-6";
 
   /* ---------- GRID ---------- */
 
   const gridCol = document.createElement("div");
-  gridCol.className = "space-y-3 shrink-0";
-
   const gridEl = document.createElement("div");
   gridEl.className = "grid grid-cols-9 gap-1";
 
-  grid.forEach((cell, i) => {
+  grid.forEach(cell => {
     const btn = document.createElement("button");
-    btn.className = "w-12 h-12 rounded-lg p-1 bg-zinc-800 hover:bg-zinc-700";
+    btn.className = "cell";
 
-    if (cell) {
-      btn.classList.remove("hover:bg-zinc-700");
-      if (cell.tile === "TempleFloor") {
-        btn.classList.add("floor-tile");
-      } else {
-        const img = document.createElement("img");
-        img.src = ROOM_ICONS[cell.tile];
-        img.className = "w-full h-full object-contain";
-        btn.appendChild(img);
-      }
-      if (cell.faded) btn.classList.add("faded");
+    if (cell.floor) {
+      const f = document.createElement("div");
+      f.className = "floor " + [...cell.floor].map(d => "open-" + d).join(" ");
+      btn.appendChild(f);
     }
 
+    if (cell.room) {
+      const r = document.createElement("div");
+      r.className = "room";
+      const img = document.createElement("img");
+      img.src = ROOM_ICONS[cell.room];
+      r.appendChild(img);
+      btn.appendChild(r);
+    }
+
+    if (cell.faded) btn.classList.add("faded");
+
     btn.onclick = () => {
-      if (selectedTile) {
-        grid[i] = { tile: selectedTile, faded: planningMode };
-        render();
-      } else if (grid[i]) {
-        grid[i].faded = !grid[i].faded;
-        render();
+      if (selectedRoom) {
+        cell.room = selectedRoom;
+        cell.faded = planningMode;
+      } else if (selectedFloor) {
+        cell.floor = selectedFloor;
+      } else {
+        cell.faded = !cell.faded;
       }
+      render();
     };
 
     btn.oncontextmenu = e => {
       e.preventDefault();
-      grid[i] = null;
+      cell.room = null;
+      cell.floor = null;
       render();
     };
 
     gridEl.appendChild(btn);
   });
 
-  /* ---------- CONTROLS (FLOOR TILE RESTORED) ---------- */
+  gridCol.appendChild(gridEl);
+
+  /* ---------- CONTROLS ---------- */
 
   const controls = document.createElement("div");
-  controls.className = "flex gap-4 items-center flex-wrap";
+  controls.className = "flex gap-2 mt-3";
 
   const saveBtn = document.createElement("button");
-  saveBtn.className = "px-3 py-1 bg-zinc-700 rounded";
   saveBtn.textContent = "Save";
+  saveBtn.className = "px-3 py-1 bg-zinc-700 rounded";
   saveBtn.onclick = saveLayout;
 
   const loadBtn = document.createElement("button");
-  loadBtn.className = "px-3 py-1 bg-zinc-700 rounded";
   loadBtn.textContent = "Load";
+  loadBtn.className = "px-3 py-1 bg-zinc-700 rounded";
   loadBtn.onclick = loadLayout;
 
+  const planning = document.createElement("label");
+  planning.className = "flex items-center gap-2 text-sm";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = planningMode;
+  cb.onchange = e => planningMode = e.target.checked;
+  planning.append(cb, document.createTextNode("Planning mode"));
+
+  controls.append(saveBtn, loadBtn, planning);
+  gridCol.appendChild(controls);
+
+  /* ---------- FLOOR PALETTE ---------- */
+
   const floorWrap = document.createElement("div");
-  floorWrap.className = "flex items-center gap-2 text-sm";
-  floorWrap.innerHTML = "<span>Floor tile:</span>";
+  floorWrap.className = "mt-4 text-center";
 
-  const floorBtn = document.createElement("button");
-  floorBtn.className = `w-8 h-8 rounded floor-tile ${
-    selectedTile === "TempleFloor" ? "ring-2 ring-emerald-500" : ""
-  }`;
-  floorBtn.onclick = () => {
-    selectedTile = selectedTile === "TempleFloor" ? null : "TempleFloor";
-    render();
-  };
+  const floorGrid = document.createElement("div");
+  floorGrid.className = "grid grid-cols-5 gap-2 justify-center";
 
-  floorWrap.appendChild(floorBtn);
+  FLOOR_TILES.forEach(f => {
+    const b = document.createElement("button");
+    b.className = "cell";
+    if (selectedFloor === f) b.classList.add("ring-2","ring-emerald-500");
 
-  const planningLabel = document.createElement("label");
-  planningLabel.className = "flex items-center gap-2 text-sm";
-  const planningCheckbox = document.createElement("input");
-  planningCheckbox.type = "checkbox";
-  planningCheckbox.checked = planningMode;
-  planningCheckbox.onchange = e => planningMode = e.target.checked;
-  planningLabel.append(planningCheckbox, document.createTextNode("Planning mode"));
+    const d = document.createElement("div");
+    d.className = "floor " + [...f].map(x => "open-" + x).join(" ");
+    b.appendChild(d);
 
-  controls.append(saveBtn, loadBtn, floorWrap, planningLabel);
-  gridCol.append(gridEl, controls);
+    b.onclick = () => {
+      selectedFloor = selectedFloor === f ? null : f;
+      selectedRoom = null;
+      render();
+    };
 
-  /* ---------- ROOM LIST ---------- */
+    floorGrid.appendChild(b);
+  });
+
+  floorWrap.append(floorGrid);
+  gridCol.appendChild(floorWrap);
+
+  /* ---------- ROOM PALETTE ---------- */
 
   const roomCol = document.createElement("div");
-  roomCol.className = "min-w-72 w-72 space-y-2";
-  roomCol.innerHTML = "<h2 class='font-semibold'>Room Tiles</h2>";
+  roomCol.innerHTML = "<h2 class='font-semibold mb-2'>Rooms</h2>";
 
-  Object.keys(ROOM_TILES).forEach(r => {
-    const btn = document.createElement("button");
-    btn.className = `w-full flex items-center gap-2 px-3 py-2 rounded ${
-      selectedTile === r ? "bg-emerald-600" : "bg-zinc-700"
-    }`;
+  Object.keys(ROOM_NAMES).forEach(r => {
+    const b = document.createElement("button");
+    b.className = "flex gap-2 items-center px-3 py-2 rounded bg-zinc-700 w-full";
+    if (selectedRoom === r) b.classList.add("ring-2","ring-emerald-500");
+
     const img = document.createElement("img");
     img.src = ROOM_ICONS[r];
     img.className = "w-5 h-5";
-    btn.appendChild(img);
-    btn.append(ROOM_NAMES[r]);
-    btn.onclick = () => {
-      selectedTile = selectedTile === r ? null : r;
+
+    b.append(img, ROOM_NAMES[r]);
+    b.onclick = () => {
+      selectedRoom = selectedRoom === r ? null : r;
+      selectedFloor = null;
       render();
     };
-    roomCol.appendChild(btn);
+    roomCol.appendChild(b);
   });
 
   /* ---------- ACTIVE BONUSES ---------- */
 
   const bonusCol = document.createElement("div");
-  bonusCol.className = "w-[420px] space-y-2";
-  bonusCol.innerHTML = `<h2 class="font-semibold">Active Bonuses</h2>`;
-
-  const list = document.createElement("div");
+  bonusCol.className = "w-72";
+  bonusCol.innerHTML = "<h2 class='font-semibold mb-2'>Active Bonuses</h2>";
 
   const counts = {};
-  const boosters = {};
-  const boostReport = [];
+const boosters = {};
+const boostReport = [];
 
-  grid.forEach(c => {
-    if (!c || c.faded) return;
-    if (ROOM_TILES[c.tile]) counts[c.tile] = (counts[c.tile] || 0) + 1;
-    if (BOOST_RULES[c.tile]) boosters[c.tile] = (boosters[c.tile] || 0) + 1;
+grid.forEach(c => {
+  if (!c.room || c.faded) return;
+  if (ROOM_TILES[c.room]) counts[c.room] = (counts[c.room] || 0) + 1;
+  if (BOOST_RULES && BOOST_RULES[c.room]) boosters[c.room] = (boosters[c.room] || 0) + 1;
+});
+
+const grouped = {};
+
+Object.entries(counts).forEach(([room, base]) => {
+  let mult = 1;
+  Object.entries(boosters).forEach(([b, n]) => {
+    const rule = BOOST_RULES[b];
+    if (rule.targets.includes(room)) mult += rule.amount * n;
   });
 
-  const grouped = {};
-
-  Object.entries(counts).forEach(([room, base]) => {
-    let mult = 1;
-    Object.entries(boosters).forEach(([b, n]) => {
-      const rule = BOOST_RULES[b];
-      if (rule.targets.includes(room)) mult += rule.amount * n;
-    });
-
-    if (mult > 1) {
-      boostReport.push(`${ROOM_NAMES[room]}: +${Math.round((mult - 1) * 100)}% (included)`);
-    }
-
-    formatBonuses(room, base * mult).forEach(text => {
-      const cat = categoryOf(text);
-      grouped[cat] ??= [];
-      grouped[cat].push(text);
-    });
-  });
-
-  Object.entries(grouped).forEach(([cat, bonuses]) => {
-    const h = document.createElement("h3");
-    h.className = "mt-3 font-semibold text-emerald-400";
-    h.textContent = cat;
-    list.appendChild(h);
-    bonuses.forEach(text => {
-      const d = document.createElement("div");
-      d.className = "text-sm";
-      d.textContent = text;
-      list.appendChild(d);
-    });
-  });
-
-  if (boostReport.length) {
-    const h = document.createElement("h3");
-    h.className = "mt-3 font-semibold text-sky-400";
-    h.textContent = "Boosted Effects (Already Included)";
-    list.appendChild(h);
-    boostReport.forEach(t => {
-      const d = document.createElement("div");
-      d.className = "text-sm opacity-80";
-      d.textContent = t;
-      list.appendChild(d);
-    });
+  if (mult > 1) {
+    boostReport.push(`${ROOM_NAMES[room]}: +${Math.round((mult - 1) * 100)}% (included)`);
   }
 
-  bonusCol.appendChild(list);
+  formatBonuses(room, base * mult).forEach(text => {
+    const cat = categoryOf(text);
+    grouped[cat] ??= [];
+    grouped[cat].push(text);
+  });
+});
+
+Object.entries(grouped).forEach(([cat, bonuses]) => {
+  const h = document.createElement("h3");
+  h.className = "mt-3 font-semibold text-emerald-400";
+  h.textContent = cat;
+  bonusCol.appendChild(h);
+  bonuses.forEach(text => {
+    const d = document.createElement("div");
+    d.className = "text-sm";
+    d.textContent = text;
+    bonusCol.appendChild(d);
+  });
+});
+
+if (boostReport.length) {
+  const h = document.createElement("h3");
+  h.className = "mt-3 font-semibold text-sky-400";
+  h.textContent = "Boosted Effects (Already Included)";
+  bonusCol.appendChild(h);
+  boostReport.forEach(t => {
+    const d = document.createElement("div");
+    d.className = "text-sm opacity-80";
+    d.textContent = t;
+    bonusCol.appendChild(d);
+  });
+}
+
+if (Object.keys(grouped).length === 0) {
+    const d = document.createElement("div");
+    d.className = "text-sm opacity-60";
+    d.textContent = "No active bonuses";
+    bonusCol.appendChild(d);
+}
+
+  /* ---------- APPEND ALL ---------- */
 
   container.append(gridCol, roomCol, bonusCol);
   app.appendChild(container);
