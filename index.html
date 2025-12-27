@@ -22,6 +22,16 @@
     background: #372f21;
     z-index: 1;
   }
+  
+  .highlight {
+	position: absolute;
+	inset: 0;
+	border: 3px solid #ec4899;        /* bright pink */
+	border-radius: 0.5rem;
+	background: rgba(124, 45, 90, 0.55); /* muted dark pink */
+	z-index: 3;                       /* above floor, below room */
+	pointer-events: none;
+}
 
   .open-U { border-top-color: transparent; }
   .open-R { border-right-color: transparent; }
@@ -57,12 +67,14 @@
 <script>
 const GRID_SIZE = 9;
 let selectedRoom = null;
+let selectedHighlight = false;
 let selectedFloor = null;
 let planningMode = false;
 
 let grid = Array(GRID_SIZE * GRID_SIZE).fill(null).map(() => ({
   room: null,
   floor: null,
+  highlight: false,
   faded: false
 }));
 
@@ -141,7 +153,7 @@ const BOOST_RULES = {
     targets: ["CorruptionChamber", "SealedVault", "SacrificialChamber"]
   },
   GolemWorks: {
-    amount: 0.30,
+    amount: 0.15,
     targets: ["SynthfleshLab", "FleshSurgeon", "TranscendentBarracks", "AlchemyLab"]
   }
 };
@@ -214,6 +226,13 @@ function render() {
       btn.appendChild(f);
     }
 
+  if (cell.highlight) {
+    const h = document.createElement("div");
+    h.className = "highlight";
+    btn.appendChild(h);
+  }
+
+
     if (cell.room) {
       const r = document.createElement("div");
       r.className = "room";
@@ -225,24 +244,32 @@ function render() {
 
     if (cell.faded) btn.classList.add("faded");
 
-    btn.onclick = () => {
-      if (selectedRoom) {
-        cell.room = selectedRoom;
-        cell.faded = planningMode;
-      } else if (selectedFloor) {
-        cell.floor = selectedFloor;
-      } else {
-        cell.faded = !cell.faded;
-      }
-      render();
-    };
+	btn.onclick = () => {
+	  if (selectedHighlight) {
+		cell.highlight = !cell.highlight;
+		render();
+		return;
+	  }
 
-    btn.oncontextmenu = e => {
-      e.preventDefault();
-      cell.room = null;
-      cell.floor = null;
-      render();
-    };
+	  if (selectedRoom) {
+		cell.room = selectedRoom;
+		cell.faded = planningMode;
+	  } else if (selectedFloor) {
+		cell.floor = selectedFloor;
+	  } else {
+		cell.faded = !cell.faded;
+	  }
+
+	  render();
+	};
+
+	btn.oncontextmenu = e => {
+	  e.preventDefault();
+	  cell.room = null;
+	  cell.floor = null;
+	  cell.highlight = false;
+	  render();
+	};
 
     gridEl.appendChild(btn);
   });
@@ -284,22 +311,43 @@ function render() {
   floorGrid.className = "grid grid-cols-5 gap-2 justify-center";
 
   FLOOR_TILES.forEach(f => {
-    const b = document.createElement("button");
-    b.className = "cell";
-    if (selectedFloor === f) b.classList.add("ring-2","ring-emerald-500");
+  const b = document.createElement("button");
+  b.className = "cell";
+  if (selectedFloor === f) b.classList.add("ring-2","ring-emerald-500");
 
-    const d = document.createElement("div");
-    d.className = "floor " + [...f].map(x => "open-" + x).join(" ");
-    b.appendChild(d);
+  const d = document.createElement("div");
+  d.className = "floor " + [...f].map(x => "open-" + x).join(" ");
+  b.appendChild(d);
 
-    b.onclick = () => {
-      selectedFloor = selectedFloor === f ? null : f;
-      selectedRoom = null;
-      render();
-    };
+  b.onclick = () => {
+    selectedFloor = selectedFloor === f ? null : f;
+    selectedRoom = null;
+    render();
+  };
 
-    floorGrid.appendChild(b);
-  });
+  floorGrid.appendChild(b);
+});
+
+// ---------- HIGHLIGHT TILE BUTTON ----------
+const highlightBtn = document.createElement("button");
+highlightBtn.className = "cell";
+
+if (selectedHighlight) {
+  highlightBtn.classList.add("ring-2", "ring-pink-500");
+}
+
+const h = document.createElement("div");
+h.className = "highlight";
+highlightBtn.appendChild(h);
+
+highlightBtn.onclick = () => {
+  selectedHighlight = !selectedHighlight;
+  selectedRoom = null;
+  selectedFloor = null;
+  render();
+};
+
+floorGrid.appendChild(highlightBtn);
 
   floorWrap.append(floorGrid);
   gridCol.appendChild(floorWrap);
